@@ -54,10 +54,26 @@ func Open(ctx context.Context, url string, wait time.Duration) (*sql.DB, error) 
 
 // Store wraps the database handle.
 type Store struct {
-	db *sql.DB
+	db            *sql.DB
+	alertChannels []string
 }
 
-func New(db *sql.DB) *Store { return &Store{db: db} }
+// Option configures a Store.
+type Option func(*Store)
+
+// WithAlertChannels sets the channels (for example "slack", "email") that
+// get an outbox row when an incident opens or resolves.
+func WithAlertChannels(channels ...string) Option {
+	return func(s *Store) { s.alertChannels = channels }
+}
+
+func New(db *sql.DB, opts ...Option) *Store {
+	s := &Store{db: db}
+	for _, o := range opts {
+		o(s)
+	}
+	return s
+}
 
 // Ping reports whether the database is reachable, for readiness checks.
 func (s *Store) Ping(ctx context.Context) error { return s.db.PingContext(ctx) }

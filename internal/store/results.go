@@ -8,6 +8,7 @@ import (
 
 	"github.com/amlaban65/uptime-monitor/internal/incident"
 	"github.com/amlaban65/uptime-monitor/internal/monitor"
+	"github.com/amlaban65/uptime-monitor/internal/notify"
 )
 
 // RecordResult stores a check result, updates the daily rollup and runs the
@@ -58,18 +59,30 @@ func (s *Store) RecordResult(ctx context.Context, m monitor.Monitor, r monitor.R
 			return err
 		}
 
+		var incidentID int64
 		switch tr {
 		case incident.Opened:
-			_, err = tx.ExecContext(ctx, `
-				INSERT INTO incidents (monitor_id, started_at, cause) VALUES ($1, $2, $3)`,
-				m.ID, next.StreakStart, r.Error)
-			return err
+			err = tx.QueryRowContext(ctx, `
+				INSERT INTO incidents (monitor_id, started_at, cause) VALUES ($1, $2, $3)
+				RETURNING id`,
+				m.ID, next.StreakStart, r.Error).Scan(&incidentID)
+			if err != nil {
+				return err
+			}
+			return s.enqueueAlerts(ctx, tx, incidentID, notify.EventOpened)
 		case incident.Resolved:
-			_, err = tx.ExecContext(ctx, `
+			err = tx.QueryRowContext(ctx, `
 				UPDATE incidents SET resolved_at = $2
-				WHERE monitor_id = $1 AND resolved_at IS NULL`,
-				m.ID, next.StreakStart)
-			return err
+				WHERE monitor_id = $1 AND resolved_at IS NULL
+				RETURNING id`,
+				m.ID, next.StreakStart).Scan(&incidentID)
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil // nothing open (for example it was deleted); nothing to alert
+			}
+			if err != nil {
+				return err
+			}
+			return s.enqueueAlerts(ctx, tx, incidentID, notify.EventResolved)
 		}
 		return nil
 	})
