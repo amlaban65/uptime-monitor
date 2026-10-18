@@ -24,6 +24,7 @@ import (
 	"github.com/amlaban65/uptime-monitor/internal/checker"
 	"github.com/amlaban65/uptime-monitor/internal/clock"
 	"github.com/amlaban65/uptime-monitor/internal/config"
+	"github.com/amlaban65/uptime-monitor/internal/metrics"
 	"github.com/amlaban65/uptime-monitor/internal/monitor"
 	"github.com/amlaban65/uptime-monitor/internal/notify"
 	"github.com/amlaban65/uptime-monitor/internal/scheduler"
@@ -89,12 +90,20 @@ func run(log *slog.Logger) error {
 		log.Info("monitors file synced", "path", cfg.MonitorsFile, "monitors", n)
 	}
 
+	// The scheduler and metrics refer to each other (hooks one way, the
+	// in-flight gauge the other), so the gauge reads through a variable.
+	var sched *scheduler.Scheduler
+	m := metrics.New(st, func() int { return sched.InFlight() }, log.With("component", "metrics"))
+
 	clk := clock.Real{}
-	sched := scheduler.New(st, checker.Default(), clk, scheduler.Config{
+	sched = scheduler.New(st, checker.Default(), clk, scheduler.Config{
 		Concurrency:  cfg.Concurrency,
 		PollInterval: cfg.PollInterval,
+		OnResult:     m.ObserveCheck,
 	}, log.With("component", "scheduler"))
-	dispatcher := notify.NewDispatcher(st, notifiers, clk, notify.DefaultDispatcherConfig(), log.With("component", "notify"))
+	dcfg := notify.DefaultDispatcherConfig()
+	dcfg.OnAttempt = m.ObserveAlert
+	dispatcher := notify.NewDispatcher(st, notifiers, clk, dcfg, log.With("component", "notify"))
 
 	srv := &http.Server{
 		Addr: cfg.ListenAddr,
@@ -102,6 +111,7 @@ func run(log *slog.Logger) error {
 			Store:      st,
 			Status:     status.NewService(st, cfg.PageTitle, 15*time.Second),
 			AdminToken: cfg.AdminToken,
+			Metrics:    m.Handler(),
 			Log:        log.With("component", "http"),
 		}).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,

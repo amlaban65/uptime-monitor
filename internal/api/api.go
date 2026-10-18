@@ -31,7 +31,8 @@ type Store interface {
 type Deps struct {
 	Store      Store
 	Status     StatusSource
-	AdminToken string // empty disables the management API
+	AdminToken string       // empty disables the management API
+	Metrics    http.Handler // optional Prometheus handler
 	Log        *slog.Logger
 }
 
@@ -39,11 +40,12 @@ type Server struct {
 	store      Store
 	status     StatusSource
 	adminToken string
+	metrics    http.Handler
 	log        *slog.Logger
 }
 
 func New(d Deps) *Server {
-	return &Server{store: d.Store, status: d.Status, adminToken: d.AdminToken, log: d.Log}
+	return &Server{store: d.Store, status: d.Status, adminToken: d.AdminToken, metrics: d.Metrics, log: d.Log}
 }
 
 // Handler returns the routed HTTP handler. Go 1.22's ServeMux supports
@@ -52,6 +54,10 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.healthz)
 	mux.HandleFunc("GET /readyz", s.readyz)
+
+	if s.metrics != nil {
+		mux.Handle("GET /metrics", s.metrics)
+	}
 
 	mux.HandleFunc("GET /{$}", s.statusPage)
 	mux.HandleFunc("GET /api/v1/status", s.statusJSON)
