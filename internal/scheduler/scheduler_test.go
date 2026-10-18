@@ -152,14 +152,22 @@ func TestRunsEachMonitorOncePerInterval(t *testing.T) {
 	done := make(chan struct{})
 	go func() { s.Run(ctx); close(done) }()
 
-	// Both run immediately, then advance 60s one poll at a time.
+	// Both run immediately, then advance 60s one poll at a time. After
+	// each tick, wait for the checks that tick made due, so fake time never
+	// runs ahead of goroutines that have not been scheduled yet.
 	waitResults(t, store.recorded, 2)
-	for range 60 {
+	for sec := 1; sec <= 60; sec++ {
 		clk.BlockUntil(1)
 		clk.Advance(time.Second)
+		due := 0
+		if sec%10 == 0 {
+			due++
+		}
+		if sec%30 == 0 {
+			due++
+		}
+		waitResults(t, store.recorded, due)
 	}
-	// 60s more: monitor 1 runs 6 more times, monitor 2 runs 2 more times.
-	waitResults(t, store.recorded, 8)
 	cancel()
 	<-done
 
