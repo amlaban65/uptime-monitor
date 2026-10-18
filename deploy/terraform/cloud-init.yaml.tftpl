@@ -1,0 +1,69 @@
+#cloud-config
+# First-boot setup: install Docker, write config, generate secrets on the
+# machine itself (so they never appear in Terraform state), and start the
+# stack with Docker Compose.
+
+package_update: true
+package_upgrade: true
+packages:
+  - docker.io
+  - docker-compose-v2
+  - git
+  - unattended-upgrades
+
+ssh_pwauth: false
+
+write_files:
+  - path: /opt/uptime/config.env
+    permissions: "0600"
+    content: |
+%{ for k, v in config_env ~}
+      ${k}='${v}'
+%{ endfor ~}
+%{ if public_url != null ~}
+      PUBLIC_URL='${public_url}'
+%{ endif ~}
+
+  - path: /opt/uptime/monitors.yml
+    permissions: "0644"
+    content: |
+      ${indent(6, monitors_yaml)}
+
+  - path: /opt/uptime/deploy.sh
+    permissions: "0700"
+    content: |
+      #!/usr/bin/env bash
+      # Idempotent: safe to re-run over SSH to deploy a new version.
+      set -euo pipefail
+      cd /opt/uptime
+
+      if [ ! -f secrets.env ]; then
+        umask 077
+        {
+          echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)"
+          echo "ADMIN_TOKEN=$(openssl rand -hex 24)"
+          # Without a domain, alert links point at the server's IP, which
+          # Terraform cannot pass in because it is assigned at creation.
+          if ! grep -q '^PUBLIC_URL=' config.env; then
+            ip=$(curl -fsS http://169.254.169.254/hetzner/v1/metadata/public-ipv4 || true)
+            if [ -n "$ip" ]; then echo "PUBLIC_URL=http://$ip"; fi
+          fi
+        } > secrets.env
+      fi
+
+      if [ -d src/.git ]; then
+        git -C src fetch --depth 1 origin '${git_ref}'
+        git -C src checkout --force FETCH_HEAD
+      else
+        git clone --depth 1 --branch '${git_ref}' '${repo_url}' src
+      fi
+
+      docker compose \
+        --project-name uptime \
+        --env-file config.env --env-file secrets.env \
+        -f src/deploy/compose.prod.yml \
+        up -d --build --remove-orphans
+
+runcmd:
+  - systemctl enable --now docker
+  - /opt/uptime/deploy.sh

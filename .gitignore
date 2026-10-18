@@ -11,4 +11,6 @@ deploy/terraform/*.tfstate
 deploy/terraform/*.tfstate.*
 deploy/terraform/*.tfvars
 !deploy/terraform/*.tfvars.example
-deploy/terraform/.terraform.lock.hcl.bak
+# Not committed: generate it with the Terraform or OpenTofu binary you use
+# (their registries differ), via `terraform providers lock`.
+deploy/terraform/.terraform.lock.hcl

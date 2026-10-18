@@ -1,0 +1,58 @@
+# Production stack for a single VM (used by the Terraform cloud-init).
+# Caddy terminates TLS (automatic certificates when SITE_ADDRESS is a
+# domain) and is the only service with published ports.
+
+services:
+  app:
+    build: ..
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://uptime:${POSTGRES_PASSWORD:?}@postgres:5432/uptime?sslmode=disable
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?}
+      MONITORS_FILE: /etc/uptime/monitors.yml
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_TO: ${SMTP_TO:-}
+    volumes:
+      - ${MONITORS_FILE_HOST:-/opt/uptime/monitors.yml}:/etc/uptime/monitors.yml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: uptime
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: uptime
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uptime -d uptime"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  caddy:
+    image: caddy:2.8
+    restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - app
+
+volumes:
+  pgdata:
+  caddy_data:
