@@ -16,6 +16,12 @@ const monitorColumns = `id, name, kind, target, method, expected_status, body_co
 	interval_ms, timeout_ms, failure_threshold, recovery_threshold, enabled, source,
 	created_at, updated_at`
 
+// monitorColumnsM is monitorColumns qualified with the alias m, for queries
+// where a bare column name would be ambiguous.
+const monitorColumnsM = `m.id, m.name, m.kind, m.target, m.method, m.expected_status, m.body_contains,
+	m.interval_ms, m.timeout_ms, m.failure_threshold, m.recovery_threshold, m.enabled, m.source,
+	m.created_at, m.updated_at`
+
 // fileSyncLockKey serializes monitors-file sync across replicas starting
 // at the same time.
 const fileSyncLockKey int64 = 0x75707469_6d650002

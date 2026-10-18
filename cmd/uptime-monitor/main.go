@@ -121,9 +121,10 @@ func run(log *slog.Logger) error {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(3)
 	go func() { defer wg.Done(); sched.Run(ctx) }()
 	go func() { defer wg.Done(); dispatcher.Run(ctx) }()
+	go func() { defer wg.Done(); runRetention(ctx, st, cfg.Retention, log.With("component", "retention")) }()
 
 	serveErr := make(chan error, 1)
 	go func() {
@@ -150,6 +151,27 @@ func run(log *slog.Logger) error {
 	wg.Wait() // in-flight checks finish, bounded by their timeouts
 	log.Info("stopped")
 	return nil
+}
+
+// runRetention prunes old results hourly. Every replica runs this loop; an
+// advisory lock inside Prune makes sure only one does the work each time.
+func runRetention(ctx context.Context, st *store.Store, keep time.Duration, log *slog.Logger) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		res, err := st.Prune(ctx, keep)
+		switch {
+		case err != nil && ctx.Err() == nil:
+			log.Error("prune", "err", err)
+		case res.Ran:
+			log.Info("pruned old data", "results", res.Results, "notifications", res.Notifications)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 func healthcheck() int {
