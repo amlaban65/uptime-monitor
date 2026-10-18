@@ -1,0 +1,14 @@
+/bin/
+/dist/
+*.test
+*.out
+coverage.*
+.env
+
+# Terraform
+deploy/terraform/.terraform/
+deploy/terraform/*.tfstate
+deploy/terraform/*.tfstate.*
+deploy/terraform/*.tfvars
+!deploy/terraform/*.tfvars.example
+deploy/terraform/.terraform.lock.hcl.bak
