@@ -56,6 +56,7 @@ func Open(ctx context.Context, url string, wait time.Duration) (*sql.DB, error) 
 type Store struct {
 	db            *sql.DB
 	alertChannels []string
+	jitter        float64
 }
 
 // Option configures a Store.
@@ -65,6 +66,13 @@ type Option func(*Store)
 // get an outbox row when an incident opens or resolves.
 func WithAlertChannels(channels ...string) Option {
 	return func(s *Store) { s.alertChannels = channels }
+}
+
+// WithJitter sets the fraction of a monitor's interval that is randomly
+// added to each run, so monitors created together drift apart instead of
+// firing in lockstep forever.
+func WithJitter(fraction float64) Option {
+	return func(s *Store) { s.jitter = fraction }
 }
 
 func New(db *sql.DB, opts ...Option) *Store {
