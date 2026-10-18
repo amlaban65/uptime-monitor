@@ -56,3 +56,13 @@ func TestParseEmptyFile(t *testing.T) {
 		t.Fatalf("specs=%v err=%v", specs, err)
 	}
 }
+
+func TestExampleFileIsValid(t *testing.T) {
+	specs, err := LoadFile("../../examples/monitors.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(specs) == 0 {
+		t.Fatal("example file has no monitors")
+	}
+}

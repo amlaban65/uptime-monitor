@@ -1,0 +1,30 @@
+# Monitors synced at startup when MONITORS_FILE points here. Monitors in this
+# file are read-only through the API; removing one here deletes it on the
+# next start. Fields left out use the defaults shown in the README.
+monitors:
+  - name: whoami
+    type: http
+    target: http://whoami/
+    interval: 15s
+    body_contains: "Hostname:"
+    failure_threshold: 2
+    recovery_threshold: 2
+
+  - name: httpbin-json
+    type: http
+    target: http://httpbin:8080/json
+    interval: 30s
+    timeout: 5s
+    body_contains: slideshow
+
+  - name: httpbin-post
+    type: http
+    method: POST
+    target: http://httpbin:8080/status/201
+    expected_status: 201
+    interval: 1m
+
+  - name: postgres
+    type: tcp
+    target: postgres:5432
+    interval: 30s

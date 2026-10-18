@@ -1,0 +1,71 @@
+# Local demo: the monitor, Postgres, two demo targets and Mailpit (a fake
+# SMTP server with a web inbox at http://localhost:8025).
+#
+#   docker compose up --build
+#   open http://localhost:8080            status page
+#   docker compose stop whoami            watch an incident open, then
+#   docker compose start whoami           resolve, with emails in Mailpit
+#
+# Run a second replica to see work shared between them:
+#   docker compose --profile replicas up --build
+
+x-app: &app
+  build: .
+  restart: unless-stopped
+  environment:
+    DATABASE_URL: postgres://uptime:uptime@postgres:5432/uptime?sslmode=disable
+    ADMIN_TOKEN: ${ADMIN_TOKEN:-dev-admin-token}
+    MONITORS_FILE: /etc/uptime/monitors.yml
+    PUBLIC_URL: http://localhost:8080
+    STATUS_PAGE_TITLE: Demo Status
+    SMTP_HOST: mailpit
+    SMTP_PORT: "1025"
+    SMTP_FROM: alerts@uptime.local
+    SMTP_TO: oncall@uptime.local
+    SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+  volumes:
+    - ./examples/monitors.yml:/etc/uptime/monitors.yml:ro
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  app:
+    <<: *app
+    ports:
+      - "8080:8080"
+
+  app-replica:
+    <<: *app
+    profiles: [replicas]
+    ports:
+      - "8081:8080"
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: uptime
+      POSTGRES_PASSWORD: uptime
+      POSTGRES_DB: uptime
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uptime -d uptime"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Demo targets
+  httpbin:
+    image: mccutchen/go-httpbin:v2.25.0
+  whoami:
+    image: traefik/whoami:v1.10.3
+
+  mailpit:
+    image: axllent/mailpit:v1.31.4
+    ports:
+      - "8025:8025"
+
+volumes:
+  pgdata:
