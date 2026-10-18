@@ -13,6 +13,9 @@ linters:
     - sqlclosecheck
     - unconvert
   settings:
+    gosec:
+      excludes:
+        - G104 # unchecked errors are errcheck's job, which already allows Close
     revive:
       rules:
         - name: exported
