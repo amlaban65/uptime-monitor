@@ -61,3 +61,16 @@ func New(db *sql.DB) *Store { return &Store{db: db} }
 
 // Ping reports whether the database is reachable, for readiness checks.
 func (s *Store) Ping(ctx context.Context) error { return s.db.PingContext(ctx) }
+
+// inTx runs fn in a transaction, committing on success.
+func (s *Store) inTx(ctx context.Context, fn func(*sql.Tx) error) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op after commit
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
+}

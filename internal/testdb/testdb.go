@@ -51,14 +51,21 @@ func URL(t testing.TB) string {
 	return u.String()
 }
 
+// MigratedURL returns a connection string for a fresh, fully migrated
+// database.
+func MigratedURL(t testing.TB) string {
+	t.Helper()
+	dsn := URL(t)
+	if _, err := store.Migrate(context.Background(), Open(t, dsn)); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	return dsn
+}
+
 // New returns a connection to a fresh, fully migrated database.
 func New(t testing.TB) *sql.DB {
 	t.Helper()
-	db := Open(t, URL(t))
-	if _, err := store.Migrate(context.Background(), db); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
+	return Open(t, MigratedURL(t))
 }
 
 // Open opens an extra connection pool to an existing test database, which is
