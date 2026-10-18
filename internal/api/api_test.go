@@ -12,6 +12,7 @@ import (
 
 	"github.com/amlaban65/uptime-monitor/internal/api"
 	"github.com/amlaban65/uptime-monitor/internal/monitor"
+	"github.com/amlaban65/uptime-monitor/internal/status"
 	"github.com/amlaban65/uptime-monitor/internal/store"
 	"github.com/amlaban65/uptime-monitor/internal/testdb"
 )
@@ -21,7 +22,12 @@ const token = "s3cret"
 func newServer(t *testing.T, adminToken string) (*httptest.Server, *store.Store) {
 	t.Helper()
 	st := store.New(testdb.New(t))
-	srv := httptest.NewServer(api.New(st, adminToken, slog.New(slog.NewTextHandler(io.Discard, nil))).Handler())
+	srv := httptest.NewServer(api.New(api.Deps{
+		Store:      st,
+		Status:     status.NewService(st, "Test", 0),
+		AdminToken: adminToken,
+		Log:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}).Handler())
 	t.Cleanup(srv.Close)
 	return srv, st
 }

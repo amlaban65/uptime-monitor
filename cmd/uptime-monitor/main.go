@@ -27,6 +27,7 @@ import (
 	"github.com/amlaban65/uptime-monitor/internal/monitor"
 	"github.com/amlaban65/uptime-monitor/internal/notify"
 	"github.com/amlaban65/uptime-monitor/internal/scheduler"
+	"github.com/amlaban65/uptime-monitor/internal/status"
 	"github.com/amlaban65/uptime-monitor/internal/store"
 )
 
@@ -96,8 +97,13 @@ func run(log *slog.Logger) error {
 	dispatcher := notify.NewDispatcher(st, notifiers, clk, notify.DefaultDispatcherConfig(), log.With("component", "notify"))
 
 	srv := &http.Server{
-		Addr:              cfg.ListenAddr,
-		Handler:           api.New(st, cfg.AdminToken, log.With("component", "http")).Handler(),
+		Addr: cfg.ListenAddr,
+		Handler: api.New(api.Deps{
+			Store:      st,
+			Status:     status.NewService(st, cfg.PageTitle, 15*time.Second),
+			AdminToken: cfg.AdminToken,
+			Log:        log.With("component", "http"),
+		}).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,

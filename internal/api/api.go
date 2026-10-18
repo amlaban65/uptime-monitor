@@ -27,14 +27,23 @@ type Store interface {
 	Ping(ctx context.Context) error
 }
 
+// Deps are the server's collaborators.
+type Deps struct {
+	Store      Store
+	Status     StatusSource
+	AdminToken string // empty disables the management API
+	Log        *slog.Logger
+}
+
 type Server struct {
 	store      Store
+	status     StatusSource
 	adminToken string
 	log        *slog.Logger
 }
 
-func New(st Store, adminToken string, log *slog.Logger) *Server {
-	return &Server{store: st, adminToken: adminToken, log: log}
+func New(d Deps) *Server {
+	return &Server{store: d.Store, status: d.Status, adminToken: d.AdminToken, log: d.Log}
 }
 
 // Handler returns the routed HTTP handler. Go 1.22's ServeMux supports
@@ -43,6 +52,9 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.healthz)
 	mux.HandleFunc("GET /readyz", s.readyz)
+
+	mux.HandleFunc("GET /{$}", s.statusPage)
+	mux.HandleFunc("GET /api/v1/status", s.statusJSON)
 
 	mux.Handle("GET /api/v1/monitors", s.admin(s.listMonitors))
 	mux.Handle("POST /api/v1/monitors", s.admin(s.createMonitor))

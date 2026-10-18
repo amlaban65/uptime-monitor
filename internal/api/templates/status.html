@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="60">
+<title>{{.Title}}</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --card: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --border: #e3e3df;
+    --good: #2f9e59; --warn: #d39a1c; --bad: #d1453b; --nodata: #d9d9d4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413; --card: #1e1e1c; --text: #ececea; --muted: #9a9a94; --border: #33332f;
+      --nodata: #3a3a36;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 1.6rem; margin: 0 0 20px; }
+  h2 { font-size: 1.1rem; margin: 36px 0 12px; }
+  .banner { padding: 14px 18px; border-radius: 8px; color: #fff; font-weight: 600; }
+  .banner.operational { background: var(--good); }
+  .banner.partial_outage { background: var(--warn); }
+  .banner.major_outage { background: var(--bad); }
+  .banner.unknown { background: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; }
+  .monitor { padding: 16px 18px; border-top: 1px solid var(--border); }
+  .monitor:first-child { border-top: 0; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .name { font-weight: 600; }
+  .pill { font-size: .8rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; color: #fff; }
+  .pill.up { background: var(--good); } .pill.down { background: var(--bad); } .pill.unknown { background: var(--muted); }
+  .bars { display: flex; gap: 2px; height: 32px; margin: 10px 0 6px; }
+  .bar { flex: 1; border-radius: 2px; min-width: 2px; }
+  .bar.good { background: var(--good); } .bar.warn { background: var(--warn); }
+  .bar.bad { background: var(--bad); } .bar.nodata { background: var(--nodata); }
+  .meta { color: var(--muted); font-size: .85rem; }
+  .meta span + span::before { content: " \00b7 "; }
+  .incident { padding: 12px 18px; border-top: 1px solid var(--border); }
+  .incident:first-child { border-top: 0; }
+  .ongoing { color: var(--bad); font-weight: 600; }
+  .empty { padding: 16px 18px; color: var(--muted); }
+  footer { margin-top: 40px; color: var(--muted); font-size: .8rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>{{.Title}}</h1>
+  <div class="banner {{.Overall}}">{{overallText .Overall}}</div>
+
+  <h2>Services</h2>
+  <div class="card">
+    {{range .Monitors}}
+    <section class="monitor">
+      <div class="row">
+        <span class="name">{{.Name}}</span>
+        <span class="pill {{.Status}}">{{statusText .Status}}</span>
+      </div>
+      <div class="bars" role="img" aria-label="Daily uptime for the last 90 days">
+        {{range .Bars}}<div class="bar {{.Level}}" title="{{.Day.Format "Jan 2"}}: {{pct .Uptime}}"></div>{{end}}
+      </div>
+      <div class="row meta">
+        <span>90 days ago</span><span>today</span>
+      </div>
+      <div class="meta">
+        <span>24h {{pct .Uptime24h}}</span><span>7d {{pct .Uptime7d}}</span><span>30d {{pct .Uptime30d}}</span><span>p50 {{ms .LatencyP50Ms}}</span><span>p95 {{ms .LatencyP95Ms}}</span>
+      </div>
+    </section>
+    {{else}}
+    <div class="empty">No monitors configured yet.</div>
+    {{end}}
+  </div>
+
+  <h2>Recent incidents</h2>
+  <div class="card">
+    {{range .Incidents}}
+    <div class="incident">
+      <div class="row">
+        <span class="name">{{.MonitorName}}</span>
+        {{if .Ongoing}}<span class="ongoing">Ongoing for {{.Duration}}</span>{{else}}<span class="meta">Down for {{.Duration}}</span>{{end}}
+      </div>
+      <div class="meta">Started {{.StartedAt.Format "2006-01-02 15:04 UTC"}}{{with .ResolvedAt}}, resolved {{.UTC.Format "2006-01-02 15:04 UTC"}}{{end}}</div>
+    </div>
+    {{else}}
+    <div class="empty">No incidents in the last 30 days.</div>
+    {{end}}
+  </div>
+
+  <footer>Updated {{.GeneratedAt.Format "2006-01-02 15:04:05 UTC"}}. Also available as <a href="/api/v1/status">JSON</a>.</footer>
+</main>
+</body>
+</html>
