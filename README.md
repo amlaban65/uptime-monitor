@@ -321,3 +321,10 @@ To deploy a new version, run `ssh root@<ip> /opt/uptime/deploy.sh` (it is idempo
 - Checks are at most once per interval, so a replica crash can skip one sample per claimed monitor.
 - Alerts are at least once, so a crash at exactly the wrong moment can send a duplicate.
 - HTTP checks do not report TLS certificate expiry.
+
+## What has been verified
+
+- `go vet`, golangci-lint and the full test suite pass with `-race`, including the integration tests against Postgres 16.
+- The binary was run end to end against Postgres: monitors file sync, checks, an incident opening, the status page, the JSON API and `/metrics`.
+- `tofu fmt -check` and `tofu validate` (OpenTofu) pass for `deploy/terraform`. It has never been applied.
+- Not yet run: `docker build`, `docker compose up`, and real Slack or SMTP delivery (tested against fakes only).
